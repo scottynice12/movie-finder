@@ -1,103 +1,36 @@
-#!/usr/bin/env python3
-"""
-Simple Movie Finder - Search movies using TMDB API.
-"""
-
 import sys
 import requests
 
-# TMDB base URL
+API_KEY = "your_api_key_here"   # <-- CHANGE THIS
 BASE_URL = "https://api.themoviedb.org/3"
 
-def search_movies(api_key, query):
-    """Search for movies by title."""
-    url = f"{BASE_URL}/search/movie"
-    params = {
-        "api_key": api_key,
-        "query": query,
-        "language": "en-US"
-    }
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+def search_movies(query):
+    resp = requests.get(f"{BASE_URL}/search/movie", params={"api_key": API_KEY, "query": query})
+    resp.raise_for_status()
+    return resp.json()
 
-def get_movie_details(api_key, movie_id):
-    """Get full details for a specific movie."""
-    url = f"{BASE_URL}/movie/{movie_id}"
-    params = {
-        "api_key": api_key,
-        "language": "en-US"
-    }
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Error: {e}")
-        sys.exit(1)
-
-def display_results(results, query):
-    """Show search results."""
-    total = results.get("total_results", 0)
+def show_results(data, query):
+    total = data.get("total_results", 0)
     if total == 0:
         print(f"No movies found for '{query}'.")
         return
     print(f"\nFound {total} movies for '{query}':\n")
-    for idx, movie in enumerate(results.get("results", [])[:10], start=1):  # limit to 10
-        title = movie.get("title", "Unknown")
-        year = movie.get("release_date", "")[:4]
-        rating = movie.get("vote_average", 0)
-        print(f"{idx}. {title} ({year}) - Rating: {rating}")
+    for i, m in enumerate(data["results"][:10], 1):
+        print(f"{i}. {m['title']} ({m.get('release_date','')[:4]}) - ⭐ {m['vote_average']}")
 
-def display_details(movie):
-    """Show detailed info for a movie."""
-    print("\n" + "=" * 60)
-    print(f"Title: {movie.get('title')}")
-    print(f"Release Date: {movie.get('release_date', 'Unknown')}")
-    print(f"Rating: {movie.get('vote_average')}/10 ({movie.get('vote_count')} votes)")
-    print(f"Runtime: {movie.get('runtime', 'Unknown')} minutes")
-    genres = [g["name"] for g in movie.get("genres", [])]
-    print(f"Genres: {', '.join(genres) if genres else 'N/A'}")
-    print(f"Overview: {movie.get('overview', 'No overview.')}")
-    print("=" * 60)
-
-def main():
-    # Get API key from command line or environment
-    api_key = None
-    if len(sys.argv) > 1 and sys.argv[1] == "--apikey" and len(sys.argv) > 2:
-        api_key = sys.argv[2]
-        sys.argv = sys.argv[3:]  # remove the --apikey and its value
-    else:
-        import os
-        api_key = os.environ.get("TMDB_API_KEY")
-
-    if not api_key:
-        print("Please provide your TMDB API key:")
-        print("  Option 1: export TMDB_API_KEY='your_key'")
-        print("  Option 2: python movie_finder.py --apikey YOUR_KEY --search 'Inception'")
-        sys.exit(1)
-
-    # Simple argument parsing
-    if len(sys.argv) < 3:
-        print("Usage:")
-        print("  Search:  python movie_finder.py --search 'movie title'")
-        print("  Details: python movie_finder.py --id 12345")
-        sys.exit(1)
-
-    if sys.argv[1] == "--search":
-        query = " ".join(sys.argv[2:])
-        results = search_movies(api_key, query)
-        display_results(results, query)
-    elif sys.argv[1] == "--id" and len(sys.argv) == 3:
-        movie_id = int(sys.argv[2])
-        details = get_movie_details(api_key, movie_id)
-        display_details(details)
-    else:
-        print("Invalid arguments. Use --search or --id")
+def movie_details(movie_id):
+    resp = requests.get(f"{BASE_URL}/movie/{movie_id}", params={"api_key": API_KEY})
+    resp.raise_for_status()
+    m = resp.json()
+    print("\n" + "="*60)
+    print(f"Title: {m['title']}\nReleased: {m.get('release_date','Unknown')}\nRating: {m['vote_average']}/10\nRuntime: {m.get('runtime','?')} min\nGenres: {', '.join([g['name'] for g in m.get('genres',[])])}\n\nOverview: {m.get('overview','No overview.')}")
+    print("="*60)
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) < 3:
+        print("Usage:\n  python movie_finder.py --search 'Movie Name'\n  python movie_finder.py --id 12345")
+        sys.exit(1)
+    if sys.argv[1] == "--search":
+        show_results(search_movies(" ".join(sys.argv[2:])), sys.argv[2])
+    elif sys.argv[1] == "--id":
+        movie_details(int(sys.argv[2]))
